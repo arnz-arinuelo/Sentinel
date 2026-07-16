@@ -65,7 +65,7 @@ async def lifespan(app: FastAPI):
     # `alembic upgrade head` at once can race. public + all migrate; the internal
     # listener trusts public to have migrated (compose orders it after public's
     # healthcheck). CORS warm is likewise pointless where no CORS middleware mounts.
-    if tier in ("public", "all"):
+    if tier in ("public", "all") and not settings.skip_migrations:
         await _run_migrations()
         logger.info("app.db.migrated")
 
