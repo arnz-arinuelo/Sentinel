@@ -90,9 +90,9 @@ async def lifespan(app: FastAPI):
     _redis_no_cert_verify = False
     try:
         from src.services.token_service import get_redis
-
+        import asyncio
         r = await get_redis()
-        await r.ping()
+        await asyncio.wait_for(r.ping(), timeout=10.0)
         if "@" not in settings.redis_url:
             _redis_no_auth = True
         if not settings.redis_url.startswith("rediss://"):
