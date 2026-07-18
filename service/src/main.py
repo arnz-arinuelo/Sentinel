@@ -77,11 +77,14 @@ async def lifespan(app: FastAPI):
         async with AsyncSession(db_engine) as db:
             await refresh_origins(db)
 
+    logger.info("app.checkpoint.after_migrations")
     # Security checks — fail-closed in production, warn in dev
     _insecure_session = (
         settings.session_secret_key == "dev-only-change-me-in-production"
     )
     _insecure_cookie = not settings.cookie_secure
+
+    logger.info("app.checkpoint.before_redis_check")
 
     # Redis connectivity and auth check
     _redis_down = False
@@ -102,6 +105,8 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         _redis_down = True
         logger.warning("app.redis.connection_failed", error=str(e), error_type=type(e).__name__)
+
+    logger.info("app.checkpoint.after_redis_check", redis_down=_redis_down)
 
     if not settings.debug:
         errors: list[tuple[str, str]] = []
@@ -190,6 +195,7 @@ async def lifespan(app: FastAPI):
         if _redis_no_tls:
             logger.warning("app.config.insecure", category="app", reason="redis_no_tls")
 
+    logger.info("app.checkpoint.before_yield")
     app.state.start_time = time.time()
     yield
     logger.info("app.shutdown")
