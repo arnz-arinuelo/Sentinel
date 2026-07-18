@@ -133,16 +133,20 @@ class Settings(BaseSettings):
 
     @property
     def redis_ssl_kwargs(self) -> dict:
+        """Extra kwargs for redis.from_url() when using rediss:// scheme."""
         if not self.redis_url.startswith("rediss://"):
             return {}
         import ssl as _ssl
-        ctx = _ssl.create_default_context()
+
+        kwargs: dict = {}
         if self.redis_tls_ca_cert:
-            ctx.load_verify_locations(self.redis_tls_ca_cert)
-        if self.redis_tls_verify != "required":
-            ctx.check_hostname = False
-            ctx.verify_mode = _ssl.CERT_NONE
-        return {"ssl": ctx}
+            kwargs["ssl_ca_certs"] = self.redis_tls_ca_cert
+        kwargs["ssl_cert_reqs"] = (
+            _ssl.CERT_REQUIRED
+            if self.redis_tls_verify == "required"
+            else _ssl.CERT_NONE
+        )
+        return kwargs
 
     @property
     def cors_origin_list(self) -> list[str]:

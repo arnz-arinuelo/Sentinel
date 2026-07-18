@@ -99,8 +99,9 @@ async def lifespan(app: FastAPI):
             _redis_no_tls = True
         elif settings.redis_tls_verify != "required":
             _redis_no_cert_verify = True
-    except Exception:
+    except Exception as e:
         _redis_down = True
+        logger.warning("app.redis.connection_failed", error=str(e), error_type=type(e).__name__)
 
     if not settings.debug:
         errors: list[tuple[str, str]] = []
