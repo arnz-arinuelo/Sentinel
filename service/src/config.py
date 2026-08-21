@@ -50,6 +50,7 @@ class Settings(BaseSettings):
     service_port: int = 9003
     base_url: str = "http://localhost:9003"
     frontend_url: str = "http://localhost:3000"
+    skip_migrations: bool = False  # Set True when migrations are handled by an init container
 
     # Session (generate with: python -c "import secrets; print(secrets.token_urlsafe(32))")
     session_secret_key: str = "dev-only-change-me-in-production"

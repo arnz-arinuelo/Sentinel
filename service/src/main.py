@@ -69,7 +69,7 @@ async def lifespan(app: FastAPI):
     # `alembic upgrade head` at once can race. public + all migrate; the internal
     # listener trusts public to have migrated (compose orders it after public's
     # healthcheck). CORS warm is likewise pointless where no CORS middleware mounts.
-    if tier in ("public", "all"):
+    if tier in ("public", "all") and not settings.skip_migrations:
         await _run_migrations()
         logger.info("app.db.migrated")
 
@@ -81,11 +81,14 @@ async def lifespan(app: FastAPI):
         async with AsyncSession(db_engine) as db:
             await refresh_origins(db)
 
+    logger.info("app.checkpoint.after_migrations")
     # Security checks — fail-closed in production, warn in dev
     _insecure_session = (
         settings.session_secret_key == "dev-only-change-me-in-production"
     )
     _insecure_cookie = not settings.cookie_secure
+
+    logger.info("app.checkpoint.before_redis_check")
 
     # Redis connectivity and auth check
     _redis_down = False
@@ -94,17 +97,20 @@ async def lifespan(app: FastAPI):
     _redis_no_cert_verify = False
     try:
         from src.services.token_service import get_redis
-
+        import asyncio
         r = await get_redis()
-        await r.ping()
+        await asyncio.wait_for(r.ping(), timeout=10.0)
         if "@" not in settings.redis_url:
             _redis_no_auth = True
         if not settings.redis_url.startswith("rediss://"):
             _redis_no_tls = True
         elif settings.redis_tls_verify != "required":
             _redis_no_cert_verify = True
-    except Exception:
+    except Exception as e:
         _redis_down = True
+        logger.warning("app.redis.connection_failed", error=str(e), error_type=type(e).__name__)
+
+    logger.info("app.checkpoint.after_redis_check", redis_down=_redis_down)
 
     if not settings.debug:
         errors: list[tuple[str, str]] = []
@@ -193,6 +199,7 @@ async def lifespan(app: FastAPI):
         if _redis_no_tls:
             logger.warning("app.config.insecure", category="app", reason="redis_no_tls")
 
+    logger.info("app.checkpoint.before_yield")
     app.state.start_time = time.time()
     yield
     logger.info("app.shutdown")
